@@ -8,10 +8,7 @@ from PIL import Image
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-# from sklearn.metrics import plot_confusion_matrix, plot_roc_curve, plot_precision_recall_curve
-from sklearn.metrics import ConfusionMatrixDisplay
-from sklearn.metrics import precision_score, recall_score
-import os
+
 import matplotlib.pyplot as plt
 # from win32com.client import Dispatch
 
@@ -26,46 +23,34 @@ sns.set_style('whitegrid')
 #đọc mô hình, hình ảnh, data
 class_names = ['IncorrectlyWornMask', 'WithMask','WithoutMask']
 svm_sklearn1 = pickle.load(open("models/svm_sklearn.pkl","rb"))
-df_compare = pickle.load(open("models/dataframe_compare.pkl","rb"))
+knn_model = pickle.load(open("models/knn.pkl","rb"))
+df_compare_svm = pickle.load(open("models/dataframe_compare.pkl","rb"))
 svm_classifiers = pickle.load(open("models/svm_build.pkl","rb"))
+voting_classification_model = pickle.load(open("models/voting.pkl","rb"))
 
-st.sidebar.title("Hệ thống nhận diện đeo khẩu trang với thuật toán SVM")
+
+#quanlity load file
+svm_quanlity = pickle.load(open("models/svm_quality.pkl","rb"))
+seft_svm_quanlity = pickle.load(open("models/seft_svm_quality.pkl","rb"))
+knn_quanlity = pickle.load(open("models/knn_quality.pkl","rb"))
+voting_quanlity = pickle.load(open("models/voting_quality.pkl","rb"))
+
+
+st.sidebar.title("Hệ thống nhận diện đeo khẩu trang")
 st.sidebar.markdown("Hình ảnh của bạn là: ")
 st.sidebar.markdown("🚫IncorrectlyWornMask ✅With mash 🍄Without mask")
 
 
 @st.cache
 def loadimg():
-    #đọc dữ liệu hình ảnh, chuyển đổi
-    p = Path("data/")
-    dirs = p.glob("*")
-    labels_dict = {'IncorrectlyWornMask':0,'WithMask':1,'WithoutMask':2 }
-
-    image_data = []
-    labels = []
-    for folder_dir in dirs:
-        print(str(folder_dir))
-        label = str(folder_dir).split("/")[-1]
-        print("doc anh thanh cong thu muc:",label)
-        for img_path in folder_dir.glob("*"):
-            img = image.load_img(img_path, target_size=(32,32))
-            img_array = image.img_to_array(img)
-            image_data.append(img_array)
-            labels.append(labels_dict[label])
-        
-
-
-    ## Chuyển đổi dữ liệu thành mảng numpy 
-    image_data = np.array(image_data, dtype='float32')/255.0
-    labels = np.array(labels)
-
-    X_train, X_test, y_train, y_test = train_test_split(image_data, labels, test_size=0.2, random_state=45)
-
-    ## Chuyển đổi dữ liệu cho phân loại Một vs Một
-    #train
-    M = X_train.shape[0]
-    X_train = X_train.reshape(M,-1)
+    pickle_in = open("pickle/X.pickle", "rb")
+    X = pickle.load(pickle_in)
+    pickle_in = open("pickle/y.pickle", "rb")
+    y = pickle.load(pickle_in)
+    # Split our data into testing and training.
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=45)
     return X_train,y_train
+
 
 image_data = []
 labels = []
@@ -138,14 +123,6 @@ def plot_metrics(metrics_list):
 
 
 
-    if 'Confusion Matrix' in metrics_list:
-
-        st.subheader("Confusion Matrix")
-        # st.image(image1, caption='Ma trận nhầm lẫn với tập test')
-
-    if 'ROC Curve' in metrics_list:
-        st.subheader("ROC Curve")
-        # st.image(image2, caption='Đường cong ROC với tập test')
 
 
 
@@ -157,7 +134,9 @@ st.sidebar.subheader("Choose Classifier")
 
 classifier = st.sidebar.selectbox("Classification Algorithms",
                                      ("Support Vector Machine (thư viện)",
-                                         "Support Vector Machine (Tự xây dựng)"
+                                         "Support Vector Machine (Tự xây dựng)",
+                                         "KNN",
+                                         "SVM + KNN + Random forest"
                                       ))
 
 if classifier == 'Support Vector Machine (thư viện)':
@@ -166,19 +145,53 @@ if classifier == 'Support Vector Machine (thư viện)':
                                      ('Confusion Matrix','ROC Curve'))
 
     st.subheader("SVM thư viện")
-    # image1 = Image.open('imagemodels/cfm_sklearn.png')
-    # image2 = Image.open('imagemodels/Multiclass ROC sklearn.png')
-    accuracy = df_compare['Accuracy'][1]
-    precision = df_compare['Precision score'][1]
-    recall = df_compare['Recall score'][1]
-    f1score = df_compare['F1 score'][1]
-    # y_pred = model.predict(image_data_test)
+    image1 = Image.open('imagemodels/SVM_sklearn.png')
+    st.image(image1, caption='SVM confusion matrix', use_column_width=True)
+    accuracy = df_compare_svm['Accuracy'][1]
+    precision = df_compare_svm['Precision score'][1]
+    recall = df_compare_svm['Recall score'][1]
+    f1score = df_compare_svm['F1 score'][1]
     st.write("Accuracy ", accuracy.round(4)*100)
     st.write("Precision score ", precision.round(4)*100)
     st.write("Recall score ", recall.round(4)*100)
     st.write("F1 score ", f1score.round(4)*100)
     plot_metrics(metrics)
-    #dự đoán
+
+if classifier == "SVM + KNN + Random forest":
+    
+    metrics = st.sidebar.multiselect("Chọn chỉ số lập biểu đồ?",
+                                     ('Confusion Matrix','ROC Curve'))
+
+    st.subheader("SVM + KNN + Random forest")
+    image1 = Image.open('imagemodels/voting_confusion.png')
+    st.image(image1, caption="SVM + KNN + Random forest", use_column_width=True)
+    accuracy = voting_quanlity[0]
+    precision = voting_quanlity[1]
+    recall = voting_quanlity[2]
+    f1score = voting_quanlity[3]
+    st.write("Accuracy ", accuracy.round(4)*100)
+    st.write("Precision score ", precision.round(4)*100)
+    st.write("Recall score ", recall.round(4)*100)
+    st.write("F1 score ", f1score.round(4)*100)
+    plot_metrics(metrics)
+
+if classifier == 'KNN':
+    
+    metrics = st.sidebar.multiselect("Chọn chỉ số lập biểu đồ?",
+                                     ('Confusion Matrix','ROC Curve'))
+
+    st.subheader("KNN")
+    image1 = Image.open('imagemodels/knn_confusion.png')
+    st.image(image1, caption='KNN confusion matrix', use_column_width=True)
+    accuracy = knn_quanlity[0]
+    precision = knn_quanlity[1]
+    recall = knn_quanlity[2]
+    f1score = knn_quanlity[3]
+    st.write("Accuracy ", accuracy.round(4)*100)
+    st.write("Precision score ", precision.round(4)*100)
+    st.write("Recall score ", recall.round(4)*100)
+    st.write("F1 score ", f1score.round(4)*100)
+    plot_metrics(metrics)
 
 
 if classifier == 'Support Vector Machine (Tự xây dựng)':
@@ -187,13 +200,12 @@ if classifier == 'Support Vector Machine (Tự xây dựng)':
                                      ('Confusion Matrix','ROC Curve'))
 
     st.subheader("SVM tự xây dựng")
-    # image1 = Image.open('imagemodels/cfm_build.png')
-    # image2 = Image.open('imagemodels/Multiclass ROC sklearn.png')
-    accuracy = df_compare['Accuracy'][0]
-    precision = df_compare['Precision score'][0]
-    recall = df_compare['Recall score'][0]
-    f1score = df_compare['F1 score'][0]
-    #y_pred = model.predict(image_data_test)
+    image1 = Image.open('imagemodels/SVM_confusion.png')
+    st.image(image1, caption='SVM confusion matrix', use_column_width=True)
+    accuracy = df_compare_svm['Accuracy'][0]
+    precision = df_compare_svm['Precision score'][0]
+    recall = df_compare_svm['Recall score'][0]
+    f1score = df_compare_svm['F1 score'][0]
     st.write("Accuracy ", accuracy.round(4)*100)
     st.write("Precision score ", precision.round(4)*100)
     st.write("Recall score ", recall.round(4)*100)
@@ -202,26 +214,34 @@ if classifier == 'Support Vector Machine (Tự xây dựng)':
 
 
 if st.sidebar.checkbox("Hiển thị bảng đánh giá", False):
-    st.subheader("Đánh giá chất lượng 2 mô hình ")
-    st.write(df_compare)
+    st.subheader("Đánh giá chất lượng các mô hình ")
+    compare = pd.DataFrame({
+    'Accuracy':[ seft_svm_quanlity[0] ,svm_quanlity[0],knn_quanlity[0], voting_quanlity[0]],
+    'Precision score': [seft_svm_quanlity[1],svm_quanlity[1],knn_quanlity[0], voting_quanlity[1]],
+    'Recall score': [seft_svm_quanlity[2],svm_quanlity[2],knn_quanlity[0], voting_quanlity[2]],
+    'F1 score': [seft_svm_quanlity[3],svm_quanlity[3],knn_quanlity[0], voting_quanlity[3]]
+
+    })
+    compare.index = ['Self-built SVM model','Model SVM library', "KNN", "SVM + KNN + Random forest" ]
+    st.write(compare)
 st.balloons()
 
-col3, col4, col5 = st.columns(3)
+# col3, col4, col5 = st.columns(3)
 
-with col3:
-    st.header("IncorrectWornMask - WithMask")
-    image3 = Image.open('imagemodels/plot_loss_0-1.png')
-    st.image(image3,"Biểu đồ sự mất mát qua các lần đào tạo")
+# with col3:
+#     st.header("Incorrect - WithMask")
+#     image3 = Image.open('imagemodels/plot_loss_0-1.png')
+#     st.image(image3,"Biểu đồ sự mất mát qua các lần đào tạo")
 
-with col4:
-    st.header("IncorrectWornMask - WithoutMask")
-    image3 = Image.open('imagemodels/plot_loss_0-2.png')
-    st.image(image3, "Biểu đồ sự mất mát qua các lần đào tạo")
+# with col4:
+#     st.header("Incorrect - WithoutMask")
+#     image3 = Image.open('imagemodels/plot_loss_0-2.png')
+#     st.image(image3, "Biểu đồ sự mất mát qua các lần đào tạo")
 
-with col5:
-    st.header("WithMask - WithoutMask")
-    image3 = Image.open('imagemodels/plot_loss_1-2.png')
-    st.image(image3, "Biểu đồ sự mất mát qua các lần đào tạo")
+# with col5:
+#     st.header("WithMask - WithoutMask")
+#     image3 = Image.open('imagemodels/plot_loss_1-2.png')
+#     st.image(image3, "Biểu đồ sự mất mát qua các lần đào tạo")
 
 #giao dien side bar dự đoán
 
@@ -243,6 +263,14 @@ if st.sidebar.button("Predict"):
         imgpre_array = coverimagetoarray(uploaded_file.name)
         pre = predict(imgpre_array)
         st.sidebar.success(" <" + switcher.get(pre, "nothing") + ">  :))")
+    if classifier == 'KNN':
+        imgpre_array = coverimagetoarray(uploaded_file.name)
+        pre = knn_model.predict([imgpre_array])
+        st.sidebar.success(" <" + switcher.get(pre[0], "nothing") + ">  :))")
+    if classifier == "SVM + KNN + Random forest":
+        imgpre_array = coverimagetoarray(uploaded_file.name)
+        pre = voting_classification_model.predict([imgpre_array])
+        st.sidebar.success(" <" + switcher.get(pre[0], "nothing") + ">  :))")
 st.write()
 
 
